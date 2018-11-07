@@ -1,0 +1,90 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+$vm_name = "ubuntu_harbor"
+$harbor_version = "1.6.0"
+$harbor_hostname = "harbor"
+$harbor_url = "my.myharbor.com"
+
+Vagrant.configure("2") do |config|
+
+  config.vm.define $vm_name do |harbor|
+    harbor.vm.box = "ubuntu/xenial64"
+    # harbor.vm.box_check_update = false
+    # harbor.vm.network "forwarded_port", guest: 80, host: 8080
+    # harbor.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+    harbor.vm.hostname #{$harbor_hostname}
+    harbor.vm.network "private_network", ip: "192.168.100.10"
+
+    # harbor.vm.network "public_network", type: "dhcp", bridge: "en0"
+
+    # harbor.vm.synced_folder "../data", "/vagrant_data"
+
+    harbor.vm.provider "virtualbox" do |vb|
+      # Display the VirtualBox GUI when booting the machine
+      # vb.gui = true
+
+      # Customize the amount of memory on the VM:
+      vb.memory = "2048"
+    end
+
+    # harbor.vm.provision "shell", inline: <<-SHELL
+    #   apt-get update
+    #   apt-get install -y apache2
+    # SHELL
+
+    p#change google hosts for china for GFW
+    harbor.vm.provision "shell", inline: <<-SHELL
+      n=`cat /etc/hosts | grep google -c`
+      if [ $n -eq 0 ];then
+        git clone https://github.com/googlehosts/hosts.git
+        sudo cat hosts/hosts-files/hosts | grep -v [Ll]ocalhost >> /etc/hosts
+      fi
+    SHELL
+
+    #instal docker
+    harbor.vm.provision "shell", inline: <<-SHELL
+      sudo -i
+      apt-get remove docker docker-engine docker-ce docker.io
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+      add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+      apt-get update
+      apt-get install -y docker-ce
+      systemctl start docker
+      exit
+    SHELL
+
+    #install python2.7 pip
+    harbor.vm.provision "shell", inline: <<-SHELL
+      sudo -i
+      apt-get install -y python-dev
+      apt-get install -y python-pip
+      exit
+    SHELL
+
+
+    #install docker-compose
+    harbor.vm.provision "shell", inline: <<-SHELL
+      sudo -i
+      pip install docker-compose
+      exit
+    SHELL
+
+    
+
+    #install harbor
+    harbor.vm.provision "shell", inline: <<-SHELL
+      sudo -i
+      apt-get install -y wget
+      wget https://storage.googleapis.com/harbor-releases/release-#{$harbor_version}/harbor-online-installer-v#{$harbor_version}.tgz
+      tar -xf harbor-online-installer-v#{$harbor_version}.tgz
+      cd harbor
+      mv harbor.cfg harbor.cfg_bk
+      cat harbor.cfg_bk | sed "s/hostname = reg.mydomain.com/hostname = #{$harbor_url}/g" > harbor.cfg
+      ./install.sh
+      exit
+    SHELL
+  end
+end
