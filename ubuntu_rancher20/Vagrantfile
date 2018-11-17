@@ -1,0 +1,88 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+$vm_name = "ubuntu_rancher"
+$rancher_version = "1.6.0"
+$rancher_hostname = "rancher"
+$rancher_url = "my.myrancher.com"
+$rancher_memory = "4096"
+$docker_mirror = "mirror.myharbor.com"
+$docker_mirror_host = "192.168.100.20"
+
+Vagrant.configure("2") do |config|
+  config.vm.define $vm_name do |rancher|
+
+    rancher.vm.box = "ubuntu/xenial64"
+
+    # rancher.vm.box_check_update = false
+
+    # rancher.vm.network "forwarded_port", guest: 80, host: 8080
+
+    # rancher.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+
+    rancher.vm.network "private_network", ip: "192.168.100.200"
+    rancher.vm.hostname = "rancher"
+
+    # rancher.vm.network "public_network"
+
+    # rancher.vm.synced_folder "../data", "/vagrant_data"
+
+    rancher.vm.provider "virtualbox" do |vb|
+    # vb.gui = true
+      vb.memory = "#{$rancher_memory}"
+    # vb.cpus = 2
+    end
+  
+    # config.vm.provision "shell", inline: <<-SHELL
+    #   apt-get update
+    #   apt-get install -y apache2
+    # SHELL
+
+    #change mirror.hosts
+    rancher.vm.provision "shell", inline: <<-SHELL
+      n=`cat /etc/hosts | grep "#{$docker_mirror}" -c`
+      if [ $n -eq 0 ];then
+        sudo echo "#{$docker_mirror_host}  #{$docker_mirror}" >> /etc/hosts
+      fi
+    SHELL
+
+    #change google hosts for china for GFW
+    rancher.vm.provision "shell", inline: <<-SHELL
+      n=`cat /etc/hosts | grep google -c`
+      if [ $n -eq 0 ];then
+        git clone https://github.com/googlehosts/hosts.git
+        sudo cat hosts/hosts-files/hosts | grep -v [Ll]ocalhost >> /etc/hosts
+      fi
+    SHELL
+
+    #instal docker
+    rancher.vm.provision "shell", inline: <<-SHELL
+      sudo -i
+      wget https://releases.rancher.com/install-docker/17.03.sh
+      chmod 777 ./17.03.sh
+      ./17.03.sh
+      exit
+    SHELL
+
+    #change docker use local mirror register
+    rancher.vm.provision "shell", inline: <<-SHELL
+      sudo -i
+      n=`cat /lib/systemd/system/docker.service | grep registry-mirror -c`
+      if [ $n -eq 0 ];then
+        if [ ! -f "/lib/systemd/system/docker.service_bk" ];then
+          cp /lib/systemd/system/docker.service /lib/systemd/system/docker.service_bk
+        fi
+        cat /lib/systemd/system/docker.service_bk | sed "s/^ExecStart=\\(.*\\)$/ExecStart=\\1 --registry-mirror http:\\/\\/#{$docker_mirror} --insecure-registry #{$docker_mirror}/g" > ./tmp
+        mv ./tmp /lib/systemd/system/docker.service
+        systemctl daemon-reload
+        service docker restart
+      fi
+      exit
+    SHELL
+
+    #run rancher
+    rancher.vm.provision "shell", inline: <<-SHELL
+      sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher
+    SHELL
+  end
+end

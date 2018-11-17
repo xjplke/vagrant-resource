@@ -18,7 +18,7 @@ Vagrant.configure("2") do |config|
 
     # harbor.vm.network "public_network", type: "dhcp", bridge: "en0"
 
-    # harbor.vm.synced_folder "/Users/sjw/harbor_data", "/data"
+    # harbor.vm.synced_folder "../harbor_data", "/data"
 
     harbor.vm.provider "virtualbox" do |vb|
       # Display the VirtualBox GUI when booting the machinep
@@ -33,8 +33,9 @@ Vagrant.configure("2") do |config|
     #   apt-get install -y apache2
     # SHELL
 
-    p#change google hosts for china for GFW
+    #change google hosts for china for GFW
     harbor.vm.provision "shell", inline: <<-SHELL
+      echo "change google hosts"
       n=`cat /etc/hosts | grep google -c`
       if [ $n -eq 0 ];then
         git clone https://github.com/googlehosts/hosts.git
@@ -42,8 +43,9 @@ Vagrant.configure("2") do |config|
       fi
     SHELL
 
-    #instal docker
+    #install docker
     harbor.vm.provision "shell", inline: <<-SHELL
+      echo "install docker"
       sudo -i
       apt-get remove docker docker-engine docker-ce docker.io
       apt-get update
@@ -58,6 +60,7 @@ Vagrant.configure("2") do |config|
 
     #install python2.7 pip
     harbor.vm.provision "shell", inline: <<-SHELL
+      echo "install python2.7 pip"
       sudo -i
       apt-get install -y python-dev
       apt-get install -y python-pip
@@ -67,6 +70,7 @@ Vagrant.configure("2") do |config|
 
     #install docker-compose
     harbor.vm.provision "shell", inline: <<-SHELL
+      echo "install docker-compose"
       sudo -i
       pip install docker-compose
       exit
@@ -74,6 +78,7 @@ Vagrant.configure("2") do |config|
 
     #install harbor
     harbor.vm.provision "shell", inline: <<-SHELL
+      echo "install harbor"
       sudo -i
       apt-get install -y wget
       wget https://storage.googleapis.com/harbor-releases/release-#{$harbor_version}/harbor-online-installer-v#{$harbor_version}.tgz
@@ -87,8 +92,14 @@ Vagrant.configure("2") do |config|
 
     #change to mirror
     harbor.vm.provision "shell", inline: <<-SHELL
+      echo "change to mirror"
+      sudo -i
+      cd /home/vagrant/harbor/
       echo "proxy:" >> /home/vagrant/harbor/common/config/registry/config.yml
       echo "    remoteurl: https://registry-1.docker.io" >> /home/vagrant/harbor/common/config/registry/config.yml
+      docker-compose down
+      docker-compose up -d
+      exit
     SHELL
   end
 end
